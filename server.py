@@ -49,11 +49,12 @@ def save_upload(data, original):
 def json_bytes(obj): 
     return json.dumps(obj, ensure_ascii=False).encode('utf-8')
 
+# تعديل رئيسي: حذف كلمة المرور تلقائياً من أي بيانات تخرج من السيرفر
 def rowdict(r): 
-    if not r: return None
+    if not r: 
+        return None
     d = dict(r)
-    if 'password' in d:
-        del d['password']  # حذف كلمة المرور فوراً لمنع إرسالها للعميل أو إظهارها
+    d.pop('password', None)
     return d
 
 class H(BaseHTTPRequestHandler):
@@ -131,6 +132,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/clients':
+                # تحديد عدم طلب كلمة المرور صراحة من الاستعلام
                 rows = c.execute('SELECT id, name, code, phone, email, created_at FROM clients ORDER BY id DESC').fetchall()
                 return self.send(obj=[rowdict(r) for r in rows])
 
