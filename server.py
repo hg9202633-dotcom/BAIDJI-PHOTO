@@ -284,3 +284,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     print(f'BAIDJI MOHA PHOTO running on port {port}')
     ThreadingHTTPServer((host, port), H).serve_forever()
+
+
