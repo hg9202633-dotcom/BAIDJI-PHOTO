@@ -5,8 +5,35 @@
 <section id="clients" class="hidden"><div class="card"><h2>إنشاء حساب عميل</h2><div class="form"><input id="cn" placeholder="اسم العميل"><input id="cc" placeholder="كود العميل"><input id="cp" placeholder="كلمة المرور"><input id="ct" placeholder="الهاتف"><input id="ce" placeholder="البريد"><button class="primary full" onclick="addClient()">إنشاء الحساب</button></div></div><div class="card section"><h2>العملاء</h2><div id="clientslist"></div></div></section>
 <section id="albums" class="hidden"><div class="card"><h2>إنشاء ألبوم للعميل</h2><div class="form"><select id="ac"></select><input id="an" placeholder="اسم الألبوم"><button class="primary full" onclick="addAlbum()">إنشاء الألبوم</button></div></div><div class="card section"><h2>رفع صور</h2><div class="form"><select id="aa"></select><input id="af" type="file" multiple accept="image/*"><button class="primary full" onclick="uploadPhotos()">رفع الصور إلى الألبوم</button></div></div><div class="card section"><h2>الألبومات</h2><div id="albumslist"></div></div></section></div><script>
 const statuses=['جديد','قيد المعالجة','جاهز','تم التسليم'];let orders=[],clients=[],albums=[];let timer=null;
-function enter(){if(ap.value==='1234'||ap.value==='admin'){sessionStorage.admin='1';login.classList.add('hidden');app.classList.remove('hidden');loadAll();clearInterval(timer);timer=setInterval(loadAll,15000)}else alert('كلمة المرور غير صحيحة')}
-if(sessionStorage.admin==='1'){login.classList.add('hidden');app.classList.remove('hidden');loadAll();timer=setInterval(loadAll,15000)}
+async function enter() {
+  const pw = ap.value.trim();
+  if (!pw) {
+    alert('يرجى إدخال كلمة المرور');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    
+    if (res.ok && data.ok) {
+      sessionStorage.admin = '1';
+      login.classList.add('hidden');
+      app.classList.remove('hidden');
+      loadAll();
+      clearInterval(timer);
+      timer = setInterval(loadAll, 15000);
+    } else {
+      alert(data.error || 'كلمة المرور غير صحيحة');
+    }
+  } catch (err) {
+    alert('تعذر الاتصال بالسيرفر، حاول مجدداً');
+  }
+}if(sessionStorage.admin==='1'){login.classList.add('hidden');app.classList.remove('hidden');loadAll();timer=setInterval(loadAll,15000)}
 function show(id,b){['dash','orders','clients','albums'].forEach(x=>document.getElementById(x).classList.toggle('hidden',x!==id));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(id==='clients')loadClients();if(id==='albums')loadAlbums()}
 async function api(u,o){let r=await fetch(u,o),d=await r.json();if(!r.ok)throw Error(d.error||'خطأ');return d}function esc(s){return String(s??'').replace(/[&<>\"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\\':'&#92;'}[x]))}
 async function loadAll(){try{let [s,o,c,a]=await Promise.all([api('/api/stats'),api('/api/orders'),api('/api/clients'),api('/api/albums')]);orders=o;clients=c;albums=a;sorders.textContent=s.orders;sclients.textContent=s.clients;spending.textContent=s.pending;sready.textContent=s.ready;latest.innerHTML=o.slice(0,7).map(x=>'<p><b>'+esc(x.order_no)+'</b> — '+esc(x.customer_name)+' — <span class="pill">'+esc(x.status)+'</span></p>').join('')||'لا توجد طلبات';filterClient.innerHTML='<option value="">كل العملاء</option>'+c.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' — '+esc(x.code)+'</option>').join('');renderOrders();refreshState.textContent='آخر تحديث: '+new Date().toLocaleTimeString('ar-DZ')}catch(e){console.error(e)}}
