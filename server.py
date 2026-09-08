@@ -10,7 +10,6 @@ DB = os.path.join(ROOT, 'data.db')
 UP = os.path.join(ROOT, 'uploads')
 os.makedirs(UP, exist_ok=True)
 
-# كلمة مرور لوحة التحكم بالإدارة (يمكنك تغييرها هنا)
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
 def db():
@@ -51,7 +50,11 @@ def json_bytes(obj):
     return json.dumps(obj, ensure_ascii=False).encode('utf-8')
 
 def rowdict(r): 
-    return dict(r) if r else None
+    if not r: return None
+    d = dict(r)
+    if 'password' in d:
+        del d['password']  # حذف كلمة المرور فوراً لمنع إرسالها للعميل أو إظهارها
+    return d
 
 class H(BaseHTTPRequestHandler):
     def send(self, code=200, obj=None, ctype='application/json; charset=utf-8'):
@@ -128,7 +131,6 @@ class H(BaseHTTPRequestHandler):
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/clients':
-                # استبعاد كلمة المرور للحفاظ على الأمان
                 rows = c.execute('SELECT id, name, code, phone, email, created_at FROM clients ORDER BY id DESC').fetchall()
                 return self.send(obj=[rowdict(r) for r in rows])
 
@@ -284,5 +286,3 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     print(f'BAIDJI MOHA PHOTO running on port {port}')
     ThreadingHTTPServer((host, port), H).serve_forever()
-
-
