@@ -10,6 +10,9 @@ DB = os.path.join(ROOT, 'data.db')
 UP = os.path.join(ROOT, 'uploads')
 os.makedirs(UP, exist_ok=True)
 
+# كلمة مرور لوحة التحكم بالإدارة (يمكنك تغييرها هنا)
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
 def db():
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
@@ -55,8 +58,10 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header('Content-Type', ctype)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
         self.end_headers()
         if obj is not None:
             self.wfile.write(json_bytes(obj) if ctype.startswith('application/json') else obj)
@@ -123,13 +128,14 @@ class H(BaseHTTPRequestHandler):
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/clients':
-                rows = c.execute('SELECT * FROM clients ORDER BY id DESC').fetchall()
+                # استبعاد كلمة المرور للحفاظ على الأمان
+                rows = c.execute('SELECT id, name, code, phone, email, created_at FROM clients ORDER BY id DESC').fetchall()
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/client-login':
                 code = q.get('code', [''])[0]
                 pw = q.get('password', [''])[0]
-                r = c.execute('SELECT * FROM clients WHERE code=? AND password=?', (code, pw)).fetchone()
+                r = c.execute('SELECT id, name, code, phone, email, created_at FROM clients WHERE code=? AND password=?', (code, pw)).fetchone()
                 if not r:
                     return self.send(401, {'error': 'بيانات الدخول غير صحيحة'})
                 albums = []
@@ -174,6 +180,12 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         c = db()
         try:
+            if p == '/api/admin-login':
+                d = self.postjson()
+                if d.get('password') == ADMIN_PASSWORD:
+                    return self.send(obj={'ok': True, 'token': 'admin-session-ok'})
+                return self.send(401, {'error': 'كلمة المرور غير صحيحة'})
+
             if p == '/api/orders':
                 ct = self.headers.get('Content-Type', '')
                 if ct.startswith('multipart/form-data'):
@@ -269,6 +281,6 @@ class H(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     init()
     host = '0.0.0.0'
-    port = 8000
-    print(f'BAIDJI MOHA PHOTO running: http://localhost:{port}')
+    port = int(os.environ.get('PORT', 8000))
+    print(f'BAIDJI MOHA PHOTO running on port {port}')
     ThreadingHTTPServer((host, port), H).serve_forever()
