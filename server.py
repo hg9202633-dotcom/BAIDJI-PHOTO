@@ -10,7 +10,7 @@ DB = os.path.join(ROOT, 'data.db')
 UP = os.path.join(ROOT, 'uploads')
 os.makedirs(UP, exist_ok=True)
 
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'mohadsat9526')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'mohasat9526')
 
 def db():
     c = sqlite3.connect(DB)
