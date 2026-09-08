@@ -1,22 +1,407 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BAIDJI MOHA PHOTO — الإدارة</title><style>:root{--gold:#e9c46a}*{box-sizing:border-box}body{margin:0;font-family:Arial,Tahoma,sans-serif;background:#050b14;color:#eef}.wrap{max-width:1350px;margin:auto;padding:22px}.login{max-width:430px;margin:12vh auto}.card{background:#0b1727e8;border:1px solid #ffffff15;border-radius:18px;padding:18px;box-shadow:0 10px 40px #0005}.head,.tabs,.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.tabs{margin:18px 0}.tab,button{background:#132338;color:#fff;border:1px solid #ffffff15;padding:11px 15px;border-radius:11px;cursor:pointer}.active,button.primary{background:var(--gold);color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.num{font-size:34px;font-weight:800;margin-top:8px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{padding:10px;border-bottom:1px solid #ffffff10;text-align:right;vertical-align:middle}select,input,textarea{padding:11px;border-radius:9px;background:#07111d;color:#fff;border:1px solid #ffffff20;width:100%}.form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.full{grid-column:1/-1}.section{margin-top:16px}.hidden{display:none}.muted,.small{color:#9eafc4}.pill{padding:5px 9px;border-radius:99px;background:#17384a}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}.photos img{width:100%;height:135px;object-fit:cover;border-radius:10px}.filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin:12px 0}.clientbox,.albumbox{padding:12px;background:#ffffff08;border-radius:12px;margin:8px 0}.danger{background:#54202a}.ok{background:#16452f}@media(max-width:700px){.form,.filters{grid-template-columns:1fr}th:nth-child(3),td:nth-child(3){display:none}.wrap{padding:14px}}
-</style></head><body><div id="login" class="wrap login"><div class="card"><h1>BAIDJI MOHA PHOTO</h1><h2>لوحة الإدارة</h2><input id="ap" type="password" placeholder="كلمة المرور"><button class="primary" style="margin-top:10px;width:100%" onclick="enter()">دخول</button></div></div><div id="app" class="wrap hidden"><header class="head"><div><h1>BAIDJI MOHA PHOTO</h1><p class="muted">مركز التحكم — العملاء، الألبومات، الطلبات، الصور والرسائل</p></div><div><button onclick="location='/'">واجهة العميل</button> <button onclick="location.reload()">تحديث</button></div></header><div class="tabs"><button class="tab active" onclick="show('dash',this)">الرئيسية</button><button class="tab" onclick="show('orders',this)">الطلبات</button><button class="tab" onclick="show('clients',this)">العملاء</button><button class="tab" onclick="show('albums',this)">الألبومات والصور</button></div>
-<section id="dash"><div class="grid"><div class="card">إجمالي الطلبات<div id="sorders" class="num">0</div></div><div class="card">العملاء<div id="sclients" class="num">0</div></div><div class="card">جديد + قيد المعالجة<div id="spending" class="num">0</div></div><div class="card">جاهز<div id="sready" class="num">0</div></div></div><div class="card section"><div class="row"><h2>آخر الطلبات</h2><button onclick="loadAll()">تحديث الآن</button></div><div id="latest"></div></div></section>
-<section id="orders" class="hidden"><div class="card"><div class="row"><h2>إدارة الطلبات</h2><span id="refreshState" class="small">تحديث تلقائي</span></div><div class="filters"><input id="searchOrder" placeholder="بحث برقم الطلب أو اسم الزبون أو الهاتف" oninput="renderOrders()"><select id="filterStatus" onchange="renderOrders()"><option value="">كل الحالات</option><option>جديد</option><option>قيد المعالجة</option><option>جاهز</option><option>تم التسليم</option></select><select id="filterClient" onchange="renderOrders()"><option value="">كل العملاء</option></select></div><div style="overflow:auto"><table><thead><tr><th>الطلب</th><th>الزبون</th><th>الخدمة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead><tbody id="ordersbody"></tbody></table></div></div><div id="orderdetail" class="card section hidden"></div></section>
-<section id="clients" class="hidden"><div class="card"><h2>إنشاء حساب عميل</h2><div class="form"><input id="cn" placeholder="اسم العميل"><input id="cc" placeholder="كود العميل"><input id="cp" type="password" placeholder="كلمة المرور"><input id="ct" placeholder="الهاتف"><input id="ce" placeholder="البريد"><button class="primary full" onclick="addClient()">إنشاء الحساب</button></div></div><div class="card section"><h2>العملاء</h2><div id="clientslist"></div></div></section>
-<section id="albums" class="hidden"><div class="card"><h2>إنشاء ألبوم للعميل</h2><div class="form"><select id="ac"></select><input id="an" placeholder="اسم الألبوم"><button class="primary full" onclick="addAlbum()">إنشاء الألبوم</button></div></div><div class="card section"><h2>رفع صور</h2><div class="form"><select id="aa"></select><input id="af" type="file" multiple accept="image/*"><button class="primary full" onclick="uploadPhotos()">رفع الصور إلى الألبوم</button></div></div><div class="card section"><h2>الألبومات</h2><div id="albumslist"></div></div></section></div><script>
-const statuses=['جديد','قيد المعالجة','جاهز','تم التسليم'];let orders=[],clients=[],albums=[];let timer=null;
-async function enter(){const pw=ap.value.trim();if(!pw){alert('يرجى إدخال كلمة المرور');return}try{const res=await fetch('/api/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const data=await res.json();if(res.ok&&data.ok){sessionStorage.admin='1';login.classList.add('hidden');app.classList.remove('hidden');loadAll();clearInterval(timer);timer=setInterval(loadAll,15000)}else{alert(data.error||'كلمة المرور غير صحيحة')}}catch(err){alert('تعذر الاتصال بالسيرفر، حاول مجدداً')}}
-if(sessionStorage.admin==='1'){login.classList.add('hidden');app.classList.remove('hidden');loadAll();timer=setInterval(loadAll,15000)}
-function show(id,b){['dash','orders','clients','albums'].forEach(x=>document.getElementById(x).classList.toggle('hidden',x!==id));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(id==='clients')loadClients();if(id==='albums')loadAlbums()}
-async function api(u,o){let r=await fetch(u,o),d=await r.json();if(!r.ok)throw Error(d.error||'خطأ');return d}function esc(s){return String(s??'').replace(/[&<>\"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\\':'&#92;'}[x]))}
-async function loadAll(){try{let [s,o,c,a]=await Promise.all([api('/api/stats'),api('/api/orders'),api('/api/clients'),api('/api/albums')]);orders=o;clients=c;albums=a;sorders.textContent=s.orders;sclients.textContent=s.clients;spending.textContent=s.pending;sready.textContent=s.ready;latest.innerHTML=o.slice(0,7).map(x=>'<p><b>'+esc(x.order_no)+'</b> — '+esc(x.customer_name)+' — <span class="pill">'+esc(x.status)+'</span></p>').join('')||'لا توجد طلبات';filterClient.innerHTML='<option value="">كل العملاء</option>'+c.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' — '+esc(x.code)+'</option>').join('');renderOrders();refreshState.textContent='آخر تحديث: '+new Date().toLocaleTimeString('ar-DZ')}catch(e){console.error(e)}}
-function renderOrders(){let q=(searchOrder.value||'').toLowerCase(), fs=filterStatus.value, fc=filterClient.value;let arr=orders.filter(o=>(!q||[o.order_no,o.customer_name,o.phone].some(v=>String(v||'').toLowerCase().includes(q)))&&(!fs||o.status===fs)&&(!fc||String(o.client_id)===fc));ordersbody.innerHTML=arr.map(x=>'<tr><td><b>'+esc(x.order_no)+'</b><br><span class="small">'+(x.code==='زائر'?'زائر':esc(x.code))+'</span></td><td>'+esc(x.customer_name)+'<br><span class="small">'+esc(x.phone||'')+'</span></td><td>'+esc(x.service)+'</td><td><select onchange="status('+x.id+',this.value)">'+statuses.map(z=>'<option '+(z===x.status?'selected':'')+'>'+z+'</option>').join('')+'</select></td><td>'+esc(x.created_at)+'</td><td><button onclick="detail('+x.id+')">تفاصيل</button></td></tr>').join('')||'<tr><td colspan="6">لا توجد نتائج.</td></tr>'}
-async function status(id,s){try{await api('/api/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status:s})});await loadAll();if(!orderdetail.classList.contains('hidden'))detail(id)}catch(e){alert(e.message)}}
-async function detail(id){try{let o=orders.find(x=>x.id===id);let ph=await api('/api/order-photos?id='+id);orderdetail.classList.remove('hidden');orderdetail.innerHTML='<div class="row"><h2>الطلب '+esc(o.order_no)+'</h2><span class="pill">'+esc(o.status)+'</span></div><div class="clientbox"><b>الزبون:</b> '+esc(o.customer_name)+'<br><b>الهاتف:</b> '+esc(o.phone)+'<br><b>البريد:</b> '+esc(o.email)+'<br><b>العميل:</b> '+esc(o.code)+'</div><p><b>الخدمة:</b> '+esc(o.service)+' | <b>المقاس:</b> '+esc(o.size)+' | <b>الكمية:</b> '+esc(o.quantity)+'</p><p><b>الملاحظات:</b> '+esc(o.notes||'—')+'</p><h3>صور الطلب ('+ph.length+')</h3><div class="photos">'+ph.map(x=>'<a href="/uploads/'+encodeURIComponent(x.filename)+'" target="_blank"><img src="/uploads/'+encodeURIComponent(x.filename)+'" title="'+esc(x.original_name)+'"></a>').join('')+'</div><div class="form" style="margin-top:15px"><textarea id="messageText" class="full" placeholder="اكتب رسالة للزبون"></textarea><button class="primary full" onclick="sendMsg('+o.id+','+(o.client_id||'null')+')">إرسال رسالة للزبون</button></div>'}catch(e){alert(e.message)}}
-async function sendMsg(oid,cid){let el=document.getElementById('messageText');if(!el||!el.value.trim())return;try{await api('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:oid,client_id:cid,message:el.value.trim()})});el.value='';alert('تم إرسال الرسالة، وستظهر للعميل عند تحديث بوابته')}catch(e){alert(e.message)}}
-async function loadClients(){try{clients=await api('/api/clients');clientslist.innerHTML=clients.map(x=>'<div class="clientbox"><div class="row"><div><b>'+esc(x.name)+'</b> — <span class="pill">'+esc(x.code)+'</span></div><span class="small">'+esc(x.created_at)+'</span></div><div class="small">الهاتف: '+esc(x.phone||'—')+' | البريد: '+esc(x.email||'—')+'</div></div>').join('')||'لا يوجد عملاء';ac.innerHTML=clients.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' — '+esc(x.code)+'</option>').join('')}catch(e){alert(e.message)}}
-async function addClient(){try{if(!cn.value||!cc.value||!cp.value)throw Error('الاسم والكود وكلمة المرور مطلوبة');await api('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cn.value,code:cc.value,password:cp.value,phone:ct.value,email:ce.value})});[cn,cc,cp,ct,ce].forEach(x=>x.value='');await loadClients();await loadAll();alert('تم إنشاء العميل')}catch(e){alert(e.message)}}
-async function loadAlbums(){try{albums=await api('/api/albums');await loadClients();aa.innerHTML=albums.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' — '+esc(x.client_name)+'</option>').join('');albumslist.innerHTML=albums.map(x=>'<div class="albumbox"><b>'+esc(x.name)+'</b> — '+esc(x.client_name)+' <span class="small">('+esc(x.code)+')</span><br><span class="small">معرّف الألبوم: '+x.id+'</span></div>').join('')||'لا توجد ألبومات'}catch(e){alert(e.message)}}
-async function addAlbum(){try{if(!an.value)throw Error('اسم الألبوم مطلوب');await api('/api/albums',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_id:ac.value,name:an.value})});an.value='';await loadAlbums();alert('تم إنشاء الألبوم')}catch(e){alert(e.message)}}
-async function uploadPhotos(){try{if(!aa.value||!af.files.length)throw Error('اختر ألبومًا وصورة واحدة على الأقل');let f=new FormData();f.append('album_id',aa.value);[...af.files].forEach(x=>f.append('photos',x,x.name));let d=await api('/api/photos',{method:'POST',body:f});af.value='';alert('تم رفع '+d.ids.length+' صورة بنجاح');await loadAlbums()}catch(e){alert(e.message)}}
-</script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BAIDJI MOHA PHOTO — الإدارة</title>
+  <style>
+    :root{--gold:#e9c46a}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Tahoma,sans-serif;background:#050b14;color:#eef}
+    .wrap{max-width:1350px;margin:auto;padding:22px}
+    .login{max-width:430px;margin:12vh auto}
+    .card{background:#0b1727e8;border:1px solid #ffffff15;border-radius:18px;padding:18px;box-shadow:0 10px 40px #0005}
+    .head,.tabs,.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .tabs{margin:18px 0}
+    .tab,button{background:#132338;color:#fff;border:1px solid #ffffff15;padding:11px 15px;border-radius:11px;cursor:pointer}
+    .active,button.primary{background:var(--gold);color:#111}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+    .num{font-size:34px;font-weight:800;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;border-bottom:1px solid #ffffff10;text-align:right;vertical-align:middle}
+    select,input,textarea{padding:11px;border-radius:9px;background:#07111d;color:#fff;border:1px solid #ffffff20;width:100%}
+    .form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .full{grid-column:1/-1}
+    .section{margin-top:16px}
+    .hidden{display:none}
+    .muted,.small{color:#9eafc4}
+    .pill{padding:5px 9px;border-radius:99px;background:#17384a}
+    .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}
+    .photos img{width:100%;height:135px;object-fit:cover;border-radius:10px}
+    .filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin:12px 0}
+    .clientbox,.albumbox{padding:12px;background:#ffffff08;border-radius:12px;margin:8px 0}
+    .danger{background:#54202a}
+    .ok{background:#16452f}
+    @media(max-width:700px){
+      .form,.filters{grid-template-columns:1fr}
+      th:nth-child(3),td:nth-child(3){display:none}
+      .wrap{padding:14px}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- واجهة تسجيل الدخول -->
+  <div id="login" class="wrap login">
+    <div class="card">
+      <h1>BAIDJI MOHA PHOTO</h1>
+      <h2>لوحة الإدارة</h2>
+      <input id="ap" type="password" placeholder="كلمة المرور">
+      <button class="primary" style="margin-top:10px;width:100%" onclick="enter()">دخول</button>
+    </div>
+  </div>
+
+  <!-- لوحة التحكم الرئيسية -->
+  <div id="app" class="wrap hidden">
+    <header class="head">
+      <div>
+        <h1>BAIDJI MOHA PHOTO</h1>
+        <p class="muted">مركز التحكم — العملاء، الألبومات، الطلبات، الصور والرسائل</p>
+      </div>
+      <div>
+        <button onclick="location='/'">واجهة العميل</button>
+        <button onclick="location.reload()">تحديث الصفحة</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" onclick="show('dash',this)">الرئيسية</button>
+      <button class="tab" onclick="show('orders',this)">الطلبات</button>
+      <button class="tab" onclick="show('clients',this)">العملاء</button>
+      <button class="tab" onclick="show('albums',this)">الألبومات والصور</button>
+    </div>
+
+    <!-- قسم الإحصائيات والرئيسية -->
+    <section id="dash">
+      <div class="grid">
+        <div class="card">إجمالي الطلبات<div id="sorders" class="num">0</div></div>
+        <div class="card">العملاء<div id="sclients" class="num">0</div></div>
+        <div class="card">جديد + قيد المعالجة<div id="spending" class="num">0</div></div>
+        <div class="card">جاهز<div id="sready" class="num">0</div></div>
+      </div>
+      <div class="card section">
+        <div class="row">
+          <h2>آخر الطلبات</h2>
+          <button onclick="loadAll()">تحديث الآن</button>
+        </div>
+        <div id="latest"></div>
+      </div>
+    </section>
+
+    <!-- قسم الطلبات -->
+    <section id="orders" class="hidden">
+      <div class="card">
+        <div class="row">
+          <h2>إدارة الطلبات</h2>
+          <span id="refreshState" class="small">تحديث تلقائي</span>
+        </div>
+        <div class="filters">
+          <input id="searchOrder" placeholder="بحث برقم الطلب أو اسم الزبون أو الهاتف" oninput="renderOrders()">
+          <select id="filterStatus" onchange="renderOrders()">
+            <option value="">كل الحالات</option>
+            <option>جديد</option>
+            <option>قيد المعالجة</option>
+            <option>جاهز</option>
+            <option>تم التسليم</option>
+          </select>
+          <select id="filterClient" onchange="renderOrders()">
+            <option value="">كل العملاء</option>
+          </select>
+        </div>
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>الطلب</th>
+                <th>الزبون</th>
+                <th>الخدمة</th>
+                <th>الحالة</th>
+                <th>التاريخ</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="ordersbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="orderdetail" class="card section hidden"></div>
+    </section>
+
+    <!-- قسم العملاء -->
+    <section id="clients" class="hidden">
+      <div class="card">
+        <h2>إنشاء حساب عميل</h2>
+        <div class="form">
+          <input id="cn" placeholder="اسم العميل">
+          <input id="cc" placeholder="كود العميل (مثال: BM-2026-002)">
+          <input id="cp" type="password" placeholder="كلمة المرور">
+          <input id="ct" placeholder="الهاتف">
+          <input id="ce" placeholder="البريد الإلكتروني">
+          <button class="primary full" onclick="addClient()">إنشاء الحساب</button>
+        </div>
+      </div>
+      <div class="card section">
+        <h2>قائمة العملاء</h2>
+        <div id="clientslist"></div>
+      </div>
+    </section>
+
+    <!-- قسم الألبومات والصور -->
+    <section id="albums" class="hidden">
+      <div class="card">
+        <h2>إنشاء ألبوم للعميل</h2>
+        <div class="form">
+          <select id="ac"></select>
+          <input id="an" placeholder="اسم الألبوم">
+          <button class="primary full" onclick="addAlbum()">إنشاء الألبوم</button>
+        </div>
+      </div>
+      <div class="card section">
+        <h2>رفع صور إلى ألبوم</h2>
+        <div class="form">
+          <select id="aa"></select>
+          <input id="af" type="file" multiple accept="image/*">
+          <button class="primary full" onclick="uploadPhotos()">رفع الصور إلى الألبوم</button>
+        </div>
+      </div>
+      <div class="card section">
+        <h2>قائمة الألبومات</h2>
+        <div id="albumslist"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const statuses = ['جديد', 'قيد المعالجة', 'جاهز', 'تم التسليم'];
+    let orders = [], clients = [], albums = [];
+    let timer = null;
+
+    async function enter() {
+      const pw = ap.value.trim();
+      if (!pw) { alert('يرجى إدخال كلمة المرور'); return; }
+      try {
+        const res = await fetch('/api/admin-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          sessionStorage.admin = '1';
+          login.classList.add('hidden');
+          app.classList.remove('hidden');
+          loadAll();
+          clearInterval(timer);
+          timer = setInterval(loadAll, 15000);
+        } else {
+          alert(data.error || 'كلمة المرور غير صحيحة');
+        }
+      } catch (err) {
+        alert('تعذر الاتصال بالسيرفر، حاول مجدداً');
+      }
+    }
+
+    if (sessionStorage.admin === '1') {
+      login.classList.add('hidden');
+      app.classList.remove('hidden');
+      loadAll();
+      timer = setInterval(loadAll, 15000);
+    }
+
+    function show(id, b) {
+      ['dash', 'orders', 'clients', 'albums'].forEach(x => document.getElementById(x).classList.toggle('hidden', x !== id));
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      if (id === 'clients') loadClients();
+      if (id === 'albums') loadAlbums();
+    }
+
+    async function api(u, o) {
+      let r = await fetch(u, o);
+      let d = await r.json();
+      if (!r.ok) throw Error(d.error || 'حدث خطأ');
+      return d;
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>\"]/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\\': '&#92;' }[x]));
+    }
+
+    async function loadAll() {
+      try {
+        let [s, o, c, a] = await Promise.all([
+          api('/api/stats'),
+          api('/api/orders'),
+          api('/api/clients'),
+          api('/api/albums')
+        ]);
+        orders = o; clients = c; albums = a;
+        sorders.textContent = s.orders;
+        sclients.textContent = s.clients;
+        spending.textContent = s.pending;
+        sready.textContent = s.ready;
+
+        latest.innerHTML = o.slice(0, 7).map(x =>
+          '<p><b>' + esc(x.order_no) + '</b> — ' + esc(x.customer_name) + ' — <span class="pill">' + esc(x.status) + '</span></p>'
+        ).join('') || 'لا توجد طلبات حتي الآن';
+
+        filterClient.innerHTML = '<option value="">كل العملاء</option>' + c.map(x =>
+          '<option value="' + x.id + '">' + esc(x.name) + ' — ' + esc(x.code) + '</option>'
+        ).join('');
+
+        renderOrders();
+        refreshState.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-DZ');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderOrders() {
+      let q = (searchOrder.value || '').toLowerCase();
+      let fs = filterStatus.value;
+      let fc = filterClient.value;
+
+      let arr = orders.filter(o =>
+        (!q || [o.order_no, o.customer_name, o.phone].some(v => String(v || '').toLowerCase().includes(q))) &&
+        (!fs || o.status === fs) &&
+        (!fc || String(o.client_id) === fc)
+      );
+
+      ordersbody.innerHTML = arr.map(x =>
+        '<tr>' +
+          '<td><b>' + esc(x.order_no) + '</b><br><span class="small">' + (x.code === 'زائر' ? 'زائر' : esc(x.code)) + '</span></td>' +
+          '<td>' + esc(x.customer_name) + '<br><span class="small">' + esc(x.phone || '') + '</span></td>' +
+          '<td>' + esc(x.service) + '</td>' +
+          '<td><select onchange="status(' + x.id + ',this.value)">' + statuses.map(z => '<option ' + (z === x.status ? 'selected' : '') + '>' + z + '</option>').join('') + '</select></td>' +
+          '<td>' + esc(x.created_at) + '</td>' +
+          '<td><button onclick="detail(' + x.id + ')">تفاصيل</button></td>' +
+        '</tr>'
+      ).join('') || '<tr><td colspan="6">لا توجد نتائج.</td></tr>';
+    }
+
+    async function status(id, s) {
+      try {
+        await api('/api/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status: s })
+        });
+        await loadAll();
+        if (!orderdetail.classList.contains('hidden')) detail(id);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function detail(id) {
+      try {
+        let o = orders.find(x => x.id === id);
+        let ph = await api('/api/order-photos?id=' + id);
+        orderdetail.classList.remove('hidden');
+        orderdetail.innerHTML =
+          '<div class="row"><h2>الطلب ' + esc(o.order_no) + '</h2><span class="pill">' + esc(o.status) + '</span></div>' +
+          '<div class="clientbox"><b>الزبون:</b> ' + esc(o.customer_name) + '<br><b>الهاتف:</b> ' + esc(o.phone) + '<br><b>البريد:</b> ' + esc(o.email) + '<br><b>العميل:</b> ' + esc(o.code) + '</div>' +
+          '<p><b>الخدمة:</b> ' + esc(o.service) + ' | <b>المقاس:</b> ' + esc(o.size) + ' | <b>الكمية:</b> ' + esc(o.quantity) + '</p>' +
+          '<p><b>الملاحظات:</b> ' + esc(o.notes || '—') + '</p>' +
+          '<h3>صور الطلب (' + ph.length + ')</h3>' +
+          '<div class="photos">' + ph.map(x => '<a href="/uploads/' + encodeURIComponent(x.filename) + '" target="_blank"><img src="/uploads/' + encodeURIComponent(x.filename) + '" title="' + esc(x.original_name) + '"></a>').join('') + '</div>' +
+          '<div class="form" style="margin-top:15px">' +
+            '<textarea id="messageText" class="full" placeholder="اكتب رسالة للزبون"></textarea>' +
+            '<button class="primary full" onclick="sendMsg(' + o.id + ',' + (o.client_id || 'null') + ')">إرسال رسالة للزبون</button>' +
+          '</div>';
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function sendMsg(oid, cid) {
+      let el = document.getElementById('messageText');
+      if (!el || !el.value.trim()) return;
+      try {
+        await api('/api/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: oid, client_id: cid, message: el.value.trim() })
+        });
+        el.value = '';
+        alert('تم إرسال الرسالة بنجاح للعميل');
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadClients() {
+      try {
+        clients = await api('/api/clients');
+        clientslist.innerHTML = clients.map(x =>
+          '<div class="clientbox"><div class="row"><div><b>' + esc(x.name) + '</b> — <span class="pill">' + esc(x.code) + '</span></div><span class="small">' + esc(x.created_at) + '</span></div><div class="small">الهاتف: ' + esc(x.phone || '—') + ' | البريد: ' + esc(x.email || '—') + '</div></div>'
+        ).join('') || 'لا يوجد عملاء';
+        ac.innerHTML = clients.map(x => '<option value="' + x.id + '">' + esc(x.name) + ' — ' + esc(x.code) + '</option>').join('');
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function addClient() {
+      try {
+        if (!cn.value || !cc.value || !cp.value) throw Error('الاسم والكود وكلمة المرور مطلوبة');
+        await api('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: cn.value, code: cc.value, password: cp.value, phone: ct.value, email: ce.value })
+        });
+        [cn, cc, cp, ct, ce].forEach(x => x.value = '');
+        await loadClients();
+        await loadAll();
+        alert('تم إنشاء العميل بنجاح');
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadAlbums() {
+      try {
+        albums = await api('/api/albums');
+        await loadClients();
+        aa.innerHTML = albums.map(x => '<option value="' + x.id + '">' + esc(x.name) + ' — ' + esc(x.client_name) + '</option>').join('');
+        albumslist.innerHTML = albums.map(x =>
+          '<div class="albumbox"><b>' + esc(x.name) + '</b> — ' + esc(x.client_name) + ' <span class="small">(' + esc(x.code) + ')</span><br><span class="small">معرّف الألبوم: ' + x.id + '</span></div>'
+        ).join('') || 'لا توجد ألبومات';
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function addAlbum() {
+      try {
+        if (!an.value) throw Error('اسم الألبوم مطلوب');
+        await api('/api/albums', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: ac.value, name: an.value })
+        });
+        an.value = '';
+        await loadAlbums();
+        alert('تم إنشاء الألبوم بنجاح');
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function uploadPhotos() {
+      try {
+        if (!aa.value || !af.files.length) throw Error('اختر ألبومًا وصورة واحدة على الأقل');
+        let f = new FormData();
+        f.append('album_id', aa.value);
+        [...af.files].forEach(x => f.append('photos', x, x.name));
+        let d = await api('/api/photos', { method: 'POST', body: f });
+        af.value = '';
+        alert('تم رفع ' + d.ids.length + ' صورة بنجاح');
+        await loadAlbums();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+  </script>
+</body>
+</html>
