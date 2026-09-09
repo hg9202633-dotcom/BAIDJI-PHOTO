@@ -6,94 +6,36 @@ from email.policy import default
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(ROOT, 'data.db')
+# محاولة الحفظ في المجلد الدائم للـ Disk إن وجد أو المجلد المحلي
+DB_DIR = os.environ.get('RENDER_DISK_PATH', ROOT)
+DB = os.path.join(DB_DIR, 'data.db')
 UP = os.path.join(ROOT, 'uploads')
 os.makedirs(UP, exist_ok=True)
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'mohasat9526')
-DATABASE_URL = os.environ.get('DATABASE_URL')
-
-# فئة مخصصة لدعم الوصول للنتائج بأسماء الأعمدة (مثل SQLite Row)
-class PGRow(dict):
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return list(self.values())[key]
-        return super().__getitem__(key)
-
-# دالة مخصصة لإدارة الاتصالات بقواعد البيانات
-class DBWrapper:
-    def __init__(self):
-        if DATABASE_URL:
-            import psycopg2
-            import psycopg2.extras
-            self.db_type = 'postgres'
-            self.conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        else:
-            self.db_type = 'sqlite'
-            self.conn = sqlite3.connect(DB)
-            self.conn.row_factory = sqlite3.Row
-
-    def execute(self, sql, params=()):
-        if self.db_type == 'postgres':
-            import psycopg2.extras
-            sql_pg = sql.replace('?', '%s')
-            cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute(sql_pg, params)
-            return cur
-        else:
-            return self.conn.execute(sql, params)
-
-    def executescript(self, script):
-        if self.db_type == 'postgres':
-            cur = self.conn.cursor()
-            cur.execute(script)
-        else:
-            self.conn.executescript(script)
-
-    def commit(self):
-        self.conn.commit()
-
-    def close(self):
-        self.conn.close()
 
 def db():
-    return DBWrapper()
+    c = sqlite3.connect(DB)
+    c.row_factory = sqlite3.Row
+    return c
 
 def init():
     c = db()
-    if c.db_type == 'postgres':
-        c.executescript('''
-        CREATE TABLE IF NOT EXISTS clients(id SERIAL PRIMARY KEY, name TEXT NOT NULL, code TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, created_at TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS albums(id SERIAL PRIMARY KEY, client_id INTEGER NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
-        CREATE TABLE IF NOT EXISTS photos(id SERIAL PRIMARY KEY, album_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, created_at TEXT NOT NULL, FOREIGN KEY(album_id) REFERENCES albums(id));
-        CREATE TABLE IF NOT EXISTS orders(id SERIAL PRIMARY KEY, order_no TEXT UNIQUE NOT NULL, client_id INTEGER, customer_name TEXT NOT NULL, phone TEXT, email TEXT, service TEXT NOT NULL, size TEXT, quantity INTEGER DEFAULT 1, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
-        CREATE TABLE IF NOT EXISTS order_photos(id SERIAL PRIMARY KEY, order_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, FOREIGN KEY(order_id) REFERENCES orders(id));
-        CREATE TABLE IF NOT EXISTS messages(id SERIAL PRIMARY KEY, order_id INTEGER, client_id INTEGER, message TEXT NOT NULL, from_admin INTEGER DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(order_id) REFERENCES orders(id));
-        ''')
-    else:
-        c.executescript('''
-        CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, created_at TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS albums(id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
-        CREATE TABLE IF NOT EXISTS photos(id INTEGER PRIMARY KEY AUTOINCREMENT, album_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, created_at TEXT NOT NULL, FOREIGN KEY(album_id) REFERENCES albums(id));
-        CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, order_no TEXT UNIQUE NOT NULL, client_id INTEGER, customer_name TEXT NOT NULL, phone TEXT, email TEXT, service TEXT NOT NULL, size TEXT, quantity INTEGER DEFAULT 1, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
-        CREATE TABLE IF NOT EXISTS order_photos(id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, FOREIGN KEY(order_id) REFERENCES orders(id));
-        CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, client_id INTEGER, message TEXT NOT NULL, from_admin INTEGER DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(order_id) REFERENCES orders(id));
-        ''')
+    c.executescript('''
+    CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS albums(id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
+    CREATE TABLE IF NOT EXISTS photos(id INTEGER PRIMARY KEY AUTOINCREMENT, album_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, created_at TEXT NOT NULL, FOREIGN KEY(album_id) REFERENCES albums(id));
+    CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, order_no TEXT UNIQUE NOT NULL, client_id INTEGER, customer_name TEXT NOT NULL, phone TEXT, email TEXT, service TEXT NOT NULL, size TEXT, quantity INTEGER DEFAULT 1, notes TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(client_id) REFERENCES clients(id));
+    CREATE TABLE IF NOT EXISTS order_photos(id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT, FOREIGN KEY(order_id) REFERENCES orders(id));
+    CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, client_id INTEGER, message TEXT NOT NULL, from_admin INTEGER DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(order_id) REFERENCES orders(id));
+    ''')
     c.commit()
-    
-    cnt = c.execute('SELECT COUNT(*) AS n FROM clients').fetchone()
-    if cnt['n'] == 0:
+    if c.execute('SELECT COUNT(*) AS n FROM clients').fetchone()['n'] == 0:
         now = datetime.now().isoformat(timespec='seconds')
-        if c.db_type == 'postgres':
-            cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id',
-                            ('عميل تجريبي', 'BM-2026-001', '1234', '0555000000', 'demo@example.com', now))
-            cid = cur.fetchone()['id']
-            c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(%s,%s,%s)', (cid, 'ألبوم تجريبي', now))
-        else:
-            cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(?,?,?,?,?,?)',
-                            ('عميل تجريبي', 'BM-2026-001', '1234', '0555000000', 'demo@example.com', now))
-            cid = cur.lastrowid
-            c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(?,?,?)', (cid, 'ألبوم تجريبي', now))
+        cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(?,?,?,?,?,?)',
+                        ('عميل تجريبي', 'BM-2026-001', '1234', '0555000000', 'demo@example.com', now))
+        cid = cur.lastrowid
+        c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(?,?,?)', (cid, 'ألبوم تجريبي', now))
     c.commit()
     c.close()
 
@@ -187,7 +129,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send(obj={'orders': o, 'clients': clients, 'ready': ready, 'pending': pending})
 
             if p == '/api/orders':
-                rows = c.execute('SELECT o.*, COALESCE(cl.code, \'زائر\') AS code FROM orders o LEFT JOIN clients cl ON cl.id=o.client_id ORDER BY o.id DESC').fetchall()
+                rows = c.execute('SELECT o.*, COALESCE(cl.code, "زائر") AS code FROM orders o LEFT JOIN clients cl ON cl.id=o.client_id ORDER BY o.id DESC').fetchall()
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/clients':
@@ -219,7 +161,7 @@ class H(BaseHTTPRequestHandler):
 
             if p == '/api/order-photos':
                 oid = q.get('id', ['0'])[0]
-                rows = c.execute('SELECT * FROM order_photos WHERE order_id=?', (int(oid),)).fetchall()
+                rows = c.execute('SELECT * FROM order_photos WHERE order_id=?', (oid,)).fetchall()
                 return self.send(obj=[rowdict(r) for r in rows])
 
             if p == '/api/albums':
@@ -271,14 +213,9 @@ class H(BaseHTTPRequestHandler):
                 qty = int(fields.get('quantity', 1) or 1)
                 notes = fields.get('notes', '')
 
-                if c.db_type == 'postgres':
-                    cur = c.execute('INSERT INTO orders(order_no,client_id,customer_name,phone,email,service,size,quantity,notes,status,created_at,updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
-                                    (no, cid, name, phone, email, service, size, qty, notes, 'جديد', now, now))
-                    oid = cur.fetchone()['id']
-                else:
-                    cur = c.execute('INSERT INTO orders(order_no,client_id,customer_name,phone,email,service,size,quantity,notes,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                                    (no, cid, name, phone, email, service, size, qty, notes, 'جديد', now, now))
-                    oid = cur.lastrowid
+                cur = c.execute('INSERT INTO orders(order_no,client_id,customer_name,phone,email,service,size,quantity,notes,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                                (no, cid, name, phone, email, service, size, qty, notes, 'جديد', now, now))
+                oid = cur.lastrowid
 
                 selected = fields.get('selected_photo_ids', '')
                 if selected and cid:
@@ -318,26 +255,16 @@ class H(BaseHTTPRequestHandler):
             if p == '/api/clients':
                 d = self.postjson()
                 now = datetime.now().isoformat(timespec='seconds')
-                if c.db_type == 'postgres':
-                    cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id', (d.get('name'), d.get('code'), d.get('password'), d.get('phone', ''), d.get('email', ''), now))
-                    nid = cur.fetchone()['id']
-                else:
-                    cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(?,?,?,?,?,?)', (d.get('name'), d.get('code'), d.get('password'), d.get('phone', ''), d.get('email', ''), now))
-                    nid = cur.lastrowid
+                cur = c.execute('INSERT INTO clients(name,code,password,phone,email,created_at) VALUES(?,?,?,?,?,?)', (d.get('name'), d.get('code'), d.get('password'), d.get('phone', ''), d.get('email', ''), now))
                 c.commit()
-                return self.send(obj={'ok': True, 'id': nid})
+                return self.send(obj={'ok': True, 'id': cur.lastrowid})
 
             if p == '/api/albums':
                 d = self.postjson()
                 now = datetime.now().isoformat(timespec='seconds')
-                if c.db_type == 'postgres':
-                    cur = c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(%s,%s,%s) RETURNING id', (int(d['client_id']), d['name'], now))
-                    nid = cur.fetchone()['id']
-                else:
-                    cur = c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(?,?,?)', (int(d['client_id']), d['name'], now))
-                    nid = cur.lastrowid
+                cur = c.execute('INSERT INTO albums(client_id,name,created_at) VALUES(?,?,?)', (int(d['client_id']), d['name'], now))
                 c.commit()
-                return self.send(obj={'ok': True, 'id': nid})
+                return self.send(obj={'ok': True, 'id': cur.lastrowid})
 
             if p == '/api/photos':
                 fields, files = self.multipart()
@@ -346,13 +273,8 @@ class H(BaseHTTPRequestHandler):
                 for _, fn, data, _ in files:
                     if data:
                         name = save_upload(data, fn)
-                        now_str = datetime.now().isoformat(timespec='seconds')
-                        if c.db_type == 'postgres':
-                            cur = c.execute('INSERT INTO photos(album_id,filename,original_name,created_at) VALUES(%s,%s,%s,%s) RETURNING id', (aid, name, fn, now_str))
-                            ids.append(cur.fetchone()['id'])
-                        else:
-                            cur = c.execute('INSERT INTO photos(album_id,filename,original_name,created_at) VALUES(?,?,?,?)', (aid, name, fn, now_str))
-                            ids.append(cur.lastrowid)
+                        cur = c.execute('INSERT INTO photos(album_id,filename,original_name,created_at) VALUES(?,?,?,?)', (aid, name, fn, datetime.now().isoformat(timespec='seconds')))
+                        ids.append(cur.lastrowid)
                 c.commit()
                 return self.send(obj={'ok': True, 'ids': ids})
 
